@@ -22,6 +22,7 @@ const state = {
   pollingTaskId: null,
   imagePreviewUrl: "",
   videoPreviewUrl: "",
+  resultPreviewUrls: new Set(),
 };
 
 const elements = {
@@ -96,6 +97,23 @@ function updateInputPreview(kind) {
     media.preload = "metadata";
   }
   preview.append(media);
+}
+
+function createResultPreviewUrl(blob) {
+  const url = URL.createObjectURL(blob);
+  state.resultPreviewUrls.add(url);
+  return url;
+}
+
+function releaseResultPreviewUrl(url) {
+  if (!url || !state.resultPreviewUrls.has(url)) return;
+  URL.revokeObjectURL(url);
+  state.resultPreviewUrls.delete(url);
+}
+
+function releaseAllResultPreviews() {
+  for (const url of state.resultPreviewUrls) URL.revokeObjectURL(url);
+  state.resultPreviewUrls.clear();
 }
 
 function formatSize(bytes) {
@@ -220,6 +238,7 @@ async function pollTask(taskId) {
 }
 
 function renderResults(results) {
+  releaseAllResultPreviews();
   elements.results.innerHTML = "";
   if (!results.length) {
     elements.results.innerHTML = '<p class="form-message">任务成功，但没有返回可展示的结果。</p>';
@@ -258,7 +277,7 @@ function renderResults(results) {
       title.textContent = filename || `RunningHub 结果.${type}`;
       const hint = document.createElement("small");
       hint.textContent = type === "zip"
-        ? "本次结果为压缩包，下载并解压后可查看生成文件。"
+        ? "本次结果为压缩包，会自动在线解压；解压后页面只保留可预览文件。"
         : "该文件无法在网页中直接预览，请下载后查看。";
       info.append(title, hint);
       file.append(icon, info);
@@ -283,6 +302,7 @@ function renderResults(results) {
                 });
             unpackArea.innerHTML = "";
             renderExtractedFiles(unpackArea, unpacked.files || []);
+            file.remove();
             elements.taskDetail.textContent = "ZIP 已解压，可以直接预览和保存视频。";
           } catch (error) {
             unpackButton.disabled = false;
@@ -296,7 +316,7 @@ function renderResults(results) {
       }
     }
 
-    if (result.url) {
+    if (result.url && type !== "zip") {
       const actions = document.createElement("div");
       actions.className = "result-actions";
       const preview = document.createElement("a");
@@ -366,6 +386,8 @@ function renderExtractedFiles(container, files) {
     meta.className = "extracted-meta";
     const name = document.createElement("span");
     name.textContent = `${file.name} · ${formatSize(file.size)}`;
+    const buttons = document.createElement("div");
+    buttons.className = "extracted-actions";
     const save = document.createElement("button");
     save.type = "button";
     save.className = "primary save-media";
@@ -396,7 +418,19 @@ function renderExtractedFiles(container, files) {
         elements.taskDetail.textContent = `保存失败：${error.message}`;
       }
     });
-    meta.append(name, save);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "secondary delete-media";
+    remove.textContent = isVideo ? "删除视频预览" : "删除图片预览";
+    remove.addEventListener("click", () => {
+      releaseResultPreviewUrl(file.previewUrl);
+      mediaCard.remove();
+      elements.taskDetail.textContent = isVideo
+        ? "已删除当前视频预览，内存会由浏览器回收。"
+        : "已删除当前图片预览，内存会由浏览器回收。";
+    });
+    buttons.append(save, remove);
+    meta.append(name, buttons);
     mediaCard.append(meta);
     container.append(mediaCard);
   }
@@ -434,7 +468,7 @@ async function extractZipInBrowser(url) {
       type,
       size: blob.size,
       blob,
-      previewUrl: URL.createObjectURL(blob),
+      previewUrl: createResultPreviewUrl(blob),
       token: "",
     });
   }
