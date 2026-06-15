@@ -499,6 +499,19 @@ function saveHistory(item) {
   renderHistory();
 }
 
+function historyLabel(item) {
+  if (item.status === "SUCCESS") return "生成成功";
+  if (item.status === "FAILED") return "生成失败";
+  if (item.status === "QUEUED") return "排队中";
+  return "生成中";
+}
+
+function historyAction(item) {
+  if (item.status === "SUCCESS") return "查看";
+  if (item.status === "FAILED") return "重查";
+  return "继续查";
+}
+
 function renderHistory() {
   elements.historyList.innerHTML = "";
   if (!state.history.length) {
@@ -510,10 +523,10 @@ function renderHistory() {
     row.className = "history-item";
     const info = document.createElement("div");
     const date = new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false });
-    info.innerHTML = `<strong>${item.status === "SUCCESS" ? "生成成功" : "生成失败"}</strong><br><span>${date}</span>`;
+    info.innerHTML = `<strong>${historyLabel(item)}</strong><br><span>${date}</span>`;
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = item.status === "SUCCESS" ? "查看" : "重查";
+    button.textContent = historyAction(item);
     button.addEventListener("click", async () => {
       if (item.status === "SUCCESS") {
         showTask("历史结果", "RunningHub 结果链接仅保留 24 小时。", 100, "done", item.taskId);
