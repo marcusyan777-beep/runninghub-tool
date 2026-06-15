@@ -1,0 +1,11 @@
+{
+  "name": "runninghub-launcher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "build:pwa": "node scripts/build-pwa.mjs",
+    "deploy": "node scripts/deploy-pages.mjs"
+  }
+}
