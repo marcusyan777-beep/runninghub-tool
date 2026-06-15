@@ -402,7 +402,7 @@ function renderResults(results) {
       const download = document.createElement("a");
       download.href = "#";
       download.textContent = isStaticMode
-        ? (type === "zip" ? "保存或分享 ZIP" : "保存或分享")
+        ? (type === "zip" ? "下载 ZIP" : "下载文件")
         : (type === "zip" ? "保存 ZIP 到电脑" : "保存到电脑");
       download.addEventListener("click", async (event) => {
         event.preventDefault();
@@ -414,8 +414,8 @@ function renderResults(results) {
             const response = await fetch(result.url);
             if (!response.ok) throw new Error("无法读取结果文件");
             const blob = await response.blob();
-            await shareOrDownload(blob, filename || `runninghub-result.${type || "bin"}`);
-            elements.taskDetail.textContent = "已打开 iPhone 保存菜单，可存入“文件”或分享。";
+            downloadBlob(blob, filename || `runninghub-result.${type || "bin"}`);
+            elements.taskDetail.textContent = "已开始下载，请到 Safari 下载列表或“文件”App 查看。";
           } else {
             const saved = await apiFetch("/api/save-result", {
               method: "POST",
@@ -468,16 +468,16 @@ function renderExtractedFiles(container, files) {
     save.className = "primary save-media";
     const isVideo = ["mp4", "webm", "mov"].includes(file.type);
     save.textContent = isStaticMode
-      ? (isVideo ? "保存或分享视频" : "保存或分享图片")
+      ? (isVideo ? "下载视频" : "下载图片")
       : (isVideo ? "保存视频到电脑" : "保存图片到电脑");
     save.addEventListener("click", async () => {
       save.disabled = true;
       save.textContent = "正在保存...";
       try {
         if (isStaticMode) {
-          await shareOrDownload(file.blob, file.name);
-          save.textContent = "已打开保存菜单";
-          elements.taskDetail.textContent = "请选择“存储到文件”或其他分享目标。";
+          downloadBlob(file.blob, file.name);
+          save.textContent = "已开始下载";
+          elements.taskDetail.textContent = "已开始下载，请到 Safari 下载列表或“文件”App 查看。";
           return;
         }
         const saved = await apiFetch("/api/save-extracted", {
@@ -551,13 +551,7 @@ async function extractZipInBrowser(url) {
   return { files };
 }
 
-async function shareOrDownload(blob, filename) {
-  const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
-  if (navigator.share && navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title: filename });
-    return;
-  }
-
+function downloadBlob(blob, filename) {
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;
