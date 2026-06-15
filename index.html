@@ -98,6 +98,7 @@
           <button class="primary" id="generateButton" type="submit">
             <span id="generateLabel">开始生成</span>
           </button>
+          <button class="secondary rerun-button" id="rerunButton" type="button">重新生成</button>
           <p class="form-message" id="formMessage" role="status"></p>
         </form>
 
@@ -107,6 +108,7 @@
               <span class="step">03</span>
               <h2>任务结果</h2>
             </div>
+            <button class="text-button" id="clearCurrentTask" type="button">清理当前</button>
           </div>
 
           <div class="empty-state" id="emptyState">
@@ -125,6 +127,10 @@
             </div>
             <div class="progress-track"><div id="progressBar"></div></div>
             <p id="taskDetail">正在准备素材...</p>
+            <details class="diagnostics" id="diagnosticPanel">
+              <summary>任务详情 / 错误详情</summary>
+              <pre id="diagnosticText">暂无详情</pre>
+            </details>
             <div id="results"></div>
           </div>
 

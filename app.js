@@ -1,11 +1,13 @@
+import { fileLimits as limits, runningHubApp } from "./app-config.js";
+
 const $ = (selector) => document.querySelector(selector);
 const isStaticMode =
   new URLSearchParams(location.search).get("static") === "1" ||
   !["127.0.0.1", "localhost"].includes(location.hostname);
 const directEndpoints = {
-  "/api/upload": "https://www.runninghub.cn/openapi/v2/media/upload/binary",
-  "/api/run": "https://www.runninghub.ai/openapi/v2/run/ai-app/2060672373740883969",
-  "/api/query": "https://www.runninghub.ai/openapi/v2/query",
+  "/api/upload": runningHubApp.endpoints.upload,
+  "/api/run": runningHubApp.endpoints.run,
+  "/api/query": runningHubApp.endpoints.query,
 };
 
 const defaults = {
@@ -23,6 +25,7 @@ const state = {
   imagePreviewUrl: "",
   videoPreviewUrl: "",
   resultPreviewUrls: new Set(),
+  lastDiagnostics: {},
 };
 
 const elements = {
@@ -35,6 +38,7 @@ const elements = {
   generatorForm: $("#generatorForm"),
   generateButton: $("#generateButton"),
   generateLabel: $("#generateLabel"),
+  rerunButton: $("#rerunButton"),
   formMessage: $("#formMessage"),
   imageInput: $("#imageInput"),
   imageName: $("#imageName"),
@@ -56,9 +60,12 @@ const elements = {
   taskId: $("#taskId"),
   taskDot: $("#taskDot"),
   taskDetail: $("#taskDetail"),
+  diagnosticPanel: $("#diagnosticPanel"),
+  diagnosticText: $("#diagnosticText"),
   progressBar: $("#progressBar"),
   results: $("#results"),
   historyList: $("#historyList"),
+  clearCurrentTask: $("#clearCurrentTask"),
 };
 
 function updateApiStatus() {
@@ -66,10 +73,34 @@ function updateApiStatus() {
   elements.apiStatus.classList.toggle("ready", Boolean(state.apiKey));
 }
 
+function setDiagnostics(details = {}) {
+  state.lastDiagnostics = {
+    time: new Date().toLocaleString("zh-CN", { hour12: false }),
+    ...state.lastDiagnostics,
+    ...details,
+  };
+  elements.diagnosticText.textContent = JSON.stringify(state.lastDiagnostics, null, 2);
+}
+
+function clearDiagnostics() {
+  state.lastDiagnostics = {};
+  elements.diagnosticText.textContent = "暂无详情";
+  elements.diagnosticPanel.open = false;
+}
+
 function fileLabel(input, label, card, emptyText) {
   const file = input.files[0];
   label.textContent = file ? `${file.name} · ${formatSize(file.size)}` : emptyText;
   card.classList.toggle("has-file", Boolean(file));
+}
+
+function validateFile(file, kind) {
+  const limit = kind === "image" ? limits.imageBytes : limits.videoBytes;
+  const label = kind === "image" ? "图片" : "视频";
+  if (file.size > limit) {
+    return `${label}较大：${formatSize(file.size)}。建议${label === "图片" ? "控制在 20 MB 内" : "控制在 250 MB 内"}，否则 iPhone 可能卡顿或上传失败。`;
+  }
+  return "";
 }
 
 function updateInputPreview(kind) {
@@ -99,6 +130,17 @@ function updateInputPreview(kind) {
   preview.append(media);
 }
 
+function releaseInputPreviews() {
+  if (state.imagePreviewUrl) URL.revokeObjectURL(state.imagePreviewUrl);
+  if (state.videoPreviewUrl) URL.revokeObjectURL(state.videoPreviewUrl);
+  state.imagePreviewUrl = "";
+  state.videoPreviewUrl = "";
+  elements.imagePreview.replaceChildren();
+  elements.videoPreview.replaceChildren();
+  elements.imagePreview.classList.remove("visible");
+  elements.videoPreview.classList.remove("visible");
+}
+
 function createResultPreviewUrl(blob) {
   const url = URL.createObjectURL(blob);
   state.resultPreviewUrls.add(url);
@@ -116,6 +158,29 @@ function releaseAllResultPreviews() {
   state.resultPreviewUrls.clear();
 }
 
+function clearCurrentTask(markHistory = false) {
+  const currentTaskId = state.pollingTaskId || state.lastDiagnostics.taskId || "";
+  state.pollingTaskId = null;
+  releaseAllResultPreviews();
+  elements.results.innerHTML = "";
+  elements.formMessage.textContent = "";
+  elements.emptyState.classList.remove("hidden");
+  elements.taskState.classList.add("hidden");
+  setBusy(false);
+  clearDiagnostics();
+  if (markHistory && currentTaskId) {
+    saveHistory({ taskId: currentTaskId, status: "DELETED", results: [], createdAt: Date.now() });
+  }
+}
+
+function clearSelectedFiles() {
+  releaseInputPreviews();
+  elements.imageInput.value = "";
+  elements.videoInput.value = "";
+  fileLabel(elements.imageInput, elements.imageName, elements.imageDrop, "点击选择图片");
+  fileLabel(elements.videoInput, elements.videoName, elements.videoDrop, "点击选择视频");
+}
+
 function formatSize(bytes) {
   if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -123,6 +188,7 @@ function formatSize(bytes) {
 
 function setBusy(busy, label = "开始生成") {
   elements.generateButton.disabled = busy;
+  elements.rerunButton.disabled = busy;
   elements.generateLabel.textContent = label;
 }
 
@@ -134,9 +200,11 @@ function showTask(status, detail, progress, mode = "running", taskId = "") {
   elements.progressBar.style.width = `${progress}%`;
   elements.taskId.textContent = taskId ? `任务 ID：${taskId}` : "";
   elements.taskDot.className = `running-dot ${mode === "running" ? "" : mode}`.trim();
+  setDiagnostics({ stage: status, detail, taskId: taskId || state.pollingTaskId || "" });
 }
 
 async function apiFetch(url, options = {}) {
+  setDiagnostics({ endpoint: url });
   const target = isStaticMode && directEndpoints[url] ? directEndpoints[url] : url;
   const response = await fetch(target, {
     ...options,
@@ -166,6 +234,7 @@ async function apiFetch(url, options = {}) {
 
 async function uploadFile(file, label) {
   showTask(`正在上传${label}`, `${file.name} · ${formatSize(file.size)}`, 18);
+  setDiagnostics({ uploadFile: file.name, uploadSize: file.size });
   const formData = new FormData();
   formData.append("file", file);
   const data = await apiFetch("/api/upload", { method: "POST", body: formData });
@@ -176,15 +245,16 @@ async function uploadFile(file, label) {
 }
 
 function buildRequest(imageValue, videoValue) {
+  const nodes = runningHubApp.nodes;
   return {
     nodeInfoList: [
-      { nodeId: "95", fieldName: "image", fieldValue: imageValue, description: "Clothing image" },
-      { nodeId: "93", fieldName: "video", fieldValue: videoValue, description: "Reference video" },
-      { nodeId: "89", fieldName: "value", fieldValue: elements.duration.value, description: "Video duration" },
-      { nodeId: "73", fieldName: "value", fieldValue: elements.size.value, description: "Size" },
-      { nodeId: "74", fieldName: "value", fieldValue: elements.maskExpansion.value, description: "Mask expansion" },
-      { nodeId: "90", fieldName: "strength", fieldValue: elements.jitter.value, description: "Jitter amplitude" },
-      { nodeId: "153", fieldName: "value", fieldValue: String(elements.saveSwitch.checked), description: "Save switch" },
+      { ...nodes.clothingImage, fieldValue: imageValue },
+      { ...nodes.referenceVideo, fieldValue: videoValue },
+      { ...nodes.duration, fieldValue: elements.duration.value },
+      { ...nodes.size, fieldValue: elements.size.value },
+      { ...nodes.maskExpansion, fieldValue: elements.maskExpansion.value },
+      { ...nodes.jitter, fieldValue: elements.jitter.value },
+      { ...nodes.saveSwitch, fieldValue: String(elements.saveSwitch.checked) },
     ],
     instanceType: "default",
     usePersonalQueue: false,
@@ -193,6 +263,7 @@ function buildRequest(imageValue, videoValue) {
 
 async function runTask(payload) {
   showTask("正在提交任务", "素材上传完成，正在创建 RunningHub 任务", 45);
+  setDiagnostics({ requestPayload: payload });
   const data = await apiFetch("/api/run", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -204,6 +275,7 @@ async function runTask(payload) {
 
 async function pollTask(taskId) {
   state.pollingTaskId = taskId;
+  setDiagnostics({ taskId });
   let attempts = 0;
 
   while (state.pollingTaskId === taskId && attempts < 1440) {
@@ -213,17 +285,19 @@ async function pollTask(taskId) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ taskId }),
     });
+    setDiagnostics({ taskId, runninghubStatus: data.status });
 
     if (data.status === "SUCCESS") {
       showTask("生成完成", "结果链接有效期为 24 小时，请尽快下载保存。", 100, "done", taskId);
       renderResults(data.results || []);
-      saveHistory({ taskId, status: "SUCCESS", results: data.results || [], createdAt: Date.now() });
+      saveHistory({ taskId, status: "SUCCESS", results: data.results || [], createdAt: Date.now(), expiresAt: Date.now() + limits.resultUrlTtlMs });
       state.pollingTaskId = null;
       return data;
     }
     if (data.status === "FAILED") {
       const reason = data.errorMessage || data.failedReason?.message || "任务生成失败";
       showTask("生成失败", reason, 100, "failed", taskId);
+      setDiagnostics({ error: reason, runninghubResponse: data });
       saveHistory({ taskId, status: "FAILED", results: [], createdAt: Date.now(), error: reason });
       state.pollingTaskId = null;
       throw new Error(reason);
@@ -234,6 +308,7 @@ async function pollTask(taskId) {
     showTask(statusText, detail, data.status === "QUEUED" ? 55 : Math.min(92, 62 + attempts / 3), "running", taskId);
     await new Promise((resolve) => setTimeout(resolve, 5000));
   }
+  if (state.pollingTaskId !== taskId) return { status: "STOPPED", taskId };
   throw new Error("任务查询超时，可稍后从历史记录继续查询");
 }
 
@@ -461,7 +536,7 @@ async function extractZipInBrowser(url) {
     const type = (name.split(".").pop() || "").toLowerCase();
     if (!name || !allowed.has(type)) continue;
     totalSize += bytes.byteLength;
-    if (totalSize > 1024 * 1024 * 1024) throw new Error("解压结果超过 1 GB");
+    if (totalSize > limits.extractedBytes) throw new Error("解压结果超过 1 GB");
     const blob = new Blob([bytes], { type: mimeTypes[type] || "application/octet-stream" });
     files.push({
       name,
@@ -500,15 +575,19 @@ function saveHistory(item) {
 }
 
 function historyLabel(item) {
+  if (item.status === "SUCCESS" && item.expiresAt && Date.now() > item.expiresAt) return "结果已过期";
   if (item.status === "SUCCESS") return "生成成功";
   if (item.status === "FAILED") return "生成失败";
   if (item.status === "QUEUED") return "排队中";
+  if (item.status === "DELETED") return "已删除预览";
   return "生成中";
 }
 
 function historyAction(item) {
+  if (item.status === "SUCCESS" && item.expiresAt && Date.now() > item.expiresAt) return "已过期";
   if (item.status === "SUCCESS") return "查看";
   if (item.status === "FAILED") return "重查";
+  if (item.status === "DELETED") return "已清理";
   return "继续查";
 }
 
@@ -527,6 +606,7 @@ function renderHistory() {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = historyAction(item);
+    button.disabled = ["已过期", "已清理"].includes(button.textContent);
     button.addEventListener("click", async () => {
       if (item.status === "SUCCESS") {
         showTask("历史结果", "RunningHub 结果链接仅保留 24 小时。", 100, "done", item.taskId);
@@ -564,10 +644,14 @@ elements.showApiKey.addEventListener("change", () => {
 elements.imageInput.addEventListener("change", () => {
   fileLabel(elements.imageInput, elements.imageName, elements.imageDrop, "点击选择图片");
   updateInputPreview("image");
+  const warning = elements.imageInput.files[0] ? validateFile(elements.imageInput.files[0], "image") : "";
+  elements.formMessage.textContent = warning;
 });
 elements.videoInput.addEventListener("change", () => {
   fileLabel(elements.videoInput, elements.videoName, elements.videoDrop, "点击选择视频");
   updateInputPreview("video");
+  const warning = elements.videoInput.files[0] ? validateFile(elements.videoInput.files[0], "video") : "";
+  elements.formMessage.textContent = warning;
 });
 elements.jitter.addEventListener("input", () => { elements.jitterValue.value = Number(elements.jitter.value).toFixed(2); });
 
@@ -576,14 +660,24 @@ $("#resetButton").addEventListener("click", () => {
   elements.jitterValue.value = defaults.jitter;
 });
 
+elements.rerunButton.addEventListener("click", () => {
+  elements.generatorForm.requestSubmit();
+});
+
 $("#clearHistory").addEventListener("click", () => {
   state.history = [];
   localStorage.removeItem("runninghub_history");
   renderHistory();
 });
 
+elements.clearCurrentTask.addEventListener("click", () => {
+  clearCurrentTask(true);
+  clearSelectedFiles();
+});
+
 elements.generatorForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  clearDiagnostics();
   elements.formMessage.textContent = "";
   elements.results.innerHTML = "";
 
@@ -596,6 +690,11 @@ elements.generatorForm.addEventListener("submit", async (event) => {
   const image = elements.imageInput.files[0];
   const video = elements.videoInput.files[0];
   if (!image || !video) return;
+  const imageWarning = validateFile(image, "image");
+  const videoWarning = validateFile(video, "video");
+  if (imageWarning || videoWarning) {
+    elements.formMessage.textContent = [imageWarning, videoWarning].filter(Boolean).join(" ");
+  }
 
   try {
     setBusy(true, "正在处理...");
@@ -605,6 +704,7 @@ elements.generatorForm.addEventListener("submit", async (event) => {
     saveHistory({ taskId: task.taskId, status: task.status || "RUNNING", results: [], createdAt: Date.now() });
     await pollTask(task.taskId);
   } catch (error) {
+    setDiagnostics({ error: error.message });
     elements.formMessage.textContent = error.message;
     if (!state.pollingTaskId) showTask("处理失败", error.message, 100, "failed");
   } finally {

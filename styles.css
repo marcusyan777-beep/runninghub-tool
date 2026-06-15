@@ -186,7 +186,9 @@ input[type="range"] { accent-color: var(--accent); margin: 11px 0; width: 100%; 
 .primary:hover { filter: brightness(1.06); }
 .primary:disabled { cursor: wait; filter: grayscale(0.7); opacity: 0.7; }
 .secondary { background: #22271f; color: var(--text); }
+.secondary:disabled { cursor: not-allowed; opacity: .55; }
 .secondary.small { padding: 10px 14px; font-size: 12px; }
+.rerun-button { width: 100%; min-height: 46px; margin-top: 10px; }
 .form-message { min-height: 18px; margin: 10px 0 0; color: var(--danger); font-size: 12px; text-align: center; }
 
 .empty-state { min-height: 265px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
@@ -204,6 +206,9 @@ input[type="range"] { accent-color: var(--accent); margin: 11px 0; width: 100%; 
 .progress-track { height: 5px; background: #252a22; border-radius: 5px; overflow: hidden; margin: 20px 0 12px; }
 .progress-track div { height: 100%; width: 8%; background: var(--accent); transition: width 300ms ease; }
 #taskDetail { color: var(--muted); font-size: 12px; }
+.diagnostics { margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; background: #0e110d; }
+.diagnostics summary { cursor: pointer; padding: 10px 12px; color: var(--muted); font-size: 12px; }
+.diagnostics pre { margin: 0; max-height: 190px; overflow: auto; padding: 0 12px 12px; color: #d9ded4; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
 .result-card { margin-top: 18px; background: #0d100c; border: 1px solid var(--line); border-radius: 15px; overflow: hidden; }
 .result-card video, .result-card img { width: 100%; max-height: 320px; display: block; object-fit: contain; background: #050605; }
 .file-result { display: flex; align-items: center; gap: 13px; padding: 18px; }
@@ -233,6 +238,7 @@ input[type="range"] { accent-color: var(--accent); margin: 11px 0; width: 100%; 
 .history-item { display: flex; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 12px; }
 .history-item span { color: var(--muted); }
 .history-item button { border: 0; background: none; color: var(--accent); padding: 0; }
+.history-item button:disabled { color: var(--muted); cursor: not-allowed; }
 .history-empty { color: var(--muted); font-size: 12px; padding: 16px 0 2px; }
 
 dialog {
