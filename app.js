@@ -20,6 +20,8 @@ const state = {
   apiKey: localStorage.getItem("runninghub_api_key") || "",
   history: JSON.parse(localStorage.getItem("runninghub_history") || "[]"),
   pollingTaskId: null,
+  imagePreviewUrl: "",
+  videoPreviewUrl: "",
 };
 
 const elements = {
@@ -36,9 +38,11 @@ const elements = {
   imageInput: $("#imageInput"),
   imageName: $("#imageName"),
   imageDrop: $("#imageDrop"),
+  imagePreview: $("#imagePreview"),
   videoInput: $("#videoInput"),
   videoName: $("#videoName"),
   videoDrop: $("#videoDrop"),
+  videoPreview: $("#videoPreview"),
   duration: $("#duration"),
   size: $("#size"),
   maskExpansion: $("#maskExpansion"),
@@ -65,6 +69,33 @@ function fileLabel(input, label, card, emptyText) {
   const file = input.files[0];
   label.textContent = file ? `${file.name} · ${formatSize(file.size)}` : emptyText;
   card.classList.toggle("has-file", Boolean(file));
+}
+
+function updateInputPreview(kind) {
+  const isImage = kind === "image";
+  const input = isImage ? elements.imageInput : elements.videoInput;
+  const preview = isImage ? elements.imagePreview : elements.videoPreview;
+  const stateKey = isImage ? "imagePreviewUrl" : "videoPreviewUrl";
+  const file = input.files[0];
+
+  if (state[stateKey]) URL.revokeObjectURL(state[stateKey]);
+  state[stateKey] = "";
+  preview.replaceChildren();
+  preview.classList.toggle("visible", Boolean(file));
+
+  if (!file) return;
+
+  const url = URL.createObjectURL(file);
+  state[stateKey] = url;
+  const media = isImage ? document.createElement("img") : document.createElement("video");
+  media.src = url;
+  if (!isImage) {
+    media.muted = true;
+    media.controls = true;
+    media.playsInline = true;
+    media.preload = "metadata";
+  }
+  preview.append(media);
 }
 
 function formatSize(bytes) {
@@ -99,8 +130,19 @@ async function apiFetch(url, options = {}) {
     },
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.message || data.errorMessage || `请求失败 (${response.status})`);
-  if (data.code && data.code !== 0) throw new Error(data.message || `RunningHub 错误码：${data.code}`);
+  const remoteMessage =
+    data.message ||
+    data.msg ||
+    data.errorMessage ||
+    data.error_msg ||
+    data.error ||
+    data.data?.message ||
+    "";
+  if (!response.ok) throw new Error(remoteMessage || `请求失败 (${response.status})`);
+  if (data.code && data.code !== 0) {
+    const detail = remoteMessage ? `：${remoteMessage}` : `，原始响应：${JSON.stringify(data).slice(0, 300)}`;
+    throw new Error(`RunningHub 错误码 ${data.code}${detail}`);
+  }
   return data;
 }
 
@@ -111,7 +153,7 @@ async function uploadFile(file, label) {
   const data = await apiFetch("/api/upload", { method: "POST", body: formData });
   const uploaded = data.data || data;
   const fileValue = uploaded.fileName || uploaded.download_url || uploaded.url;
-  if (!fileValue) throw new Error(`${label}上传成功，但响应中没有文件地址`);
+  if (!fileValue) throw new Error(`${label}上传成功，但响应中没有文件地址：${JSON.stringify(data).slice(0, 300)}`);
   return fileValue;
 }
 
@@ -472,8 +514,14 @@ elements.showApiKey.addEventListener("change", () => {
   elements.apiKeyInput.type = elements.showApiKey.checked ? "text" : "password";
 });
 
-elements.imageInput.addEventListener("change", () => fileLabel(elements.imageInput, elements.imageName, elements.imageDrop, "点击选择图片"));
-elements.videoInput.addEventListener("change", () => fileLabel(elements.videoInput, elements.videoName, elements.videoDrop, "点击选择视频"));
+elements.imageInput.addEventListener("change", () => {
+  fileLabel(elements.imageInput, elements.imageName, elements.imageDrop, "点击选择图片");
+  updateInputPreview("image");
+});
+elements.videoInput.addEventListener("change", () => {
+  fileLabel(elements.videoInput, elements.videoName, elements.videoDrop, "点击选择视频");
+  updateInputPreview("video");
+});
 elements.jitter.addEventListener("input", () => { elements.jitterValue.value = Number(elements.jitter.value).toFixed(2); });
 
 $("#resetButton").addEventListener("click", () => {

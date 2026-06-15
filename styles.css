@@ -105,7 +105,7 @@ h1 { margin: 0; font-size: clamp(34px, 5vw, 58px); line-height: 1; letter-spacin
 
 .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
 .upload-card {
-  min-height: 175px;
+  min-height: 230px;
   border: 1px dashed #41483b;
   border-radius: 17px;
   background: var(--panel-soft);
@@ -122,6 +122,24 @@ h1 { margin: 0; font-size: clamp(34px, 5vw, 58px); line-height: 1; letter-spacin
 .upload-card input { display: none; }
 .upload-card span:last-child { color: var(--muted); font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .upload-icon { width: 38px; height: 38px; display: grid; place-items: center; color: var(--accent); border-radius: 50%; background: rgba(184, 255, 22, 0.1); font-size: 23px; margin-bottom: 4px; }
+.upload-card.has-file .upload-icon { display: none; }
+.input-preview {
+  display: none;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 13px;
+  overflow: hidden;
+  background: #050605;
+  border: 1px solid rgba(255,255,255,.08);
+}
+.input-preview.visible { display: block; }
+.input-preview img,
+.input-preview video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
 .parameters-heading { margin-top: 34px; }
 .text-button { background: none; border: 0; padding: 0; color: var(--muted); font-size: 12px; }
 .text-button:hover { color: var(--text); }
@@ -243,7 +261,7 @@ dialog form { padding: 26px; }
 @media (max-width: 520px) {
   .panel { padding: 20px; border-radius: 18px; }
   .upload-grid, .fields { grid-template-columns: 1fr; }
-  .upload-card { min-height: 135px; }
+  .upload-card { min-height: 210px; }
   .section-heading p { display: none; }
   h1 { font-size: 38px; }
 }

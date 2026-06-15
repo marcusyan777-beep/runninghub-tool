@@ -1,4 +1,4 @@
-const CACHE = "runninghub-pwa-v1";
+const CACHE = "runninghub-pwa-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
