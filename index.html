@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#11140f" />
+    <title>RunningHub 快捷生成器</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/">
+        <span class="brand-mark">R</span>
+        <span>RunningHub 快捷生成器</span>
+      </a>
+      <button class="secondary small" id="settingsButton" type="button">API 设置</button>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">AI 应用 · 视频换装</p>
+          <h1>视频换装加抖动</h1>
+          <p class="intro">上传服装图片和参考视频，调整参数后直接提交到 RunningHub。</p>
+        </div>
+        <div class="status-badge" id="apiStatus">尚未配置 API Key</div>
+      </section>
+
+      <div class="layout">
+        <form class="panel generator" id="generatorForm">
+          <div class="section-heading">
+            <div>
+              <span class="step">01</span>
+              <h2>选择素材</h2>
+            </div>
+            <p>图片和视频仅用于上传到 RunningHub。</p>
+          </div>
+
+          <div class="upload-grid">
+            <label class="upload-card" id="imageDrop">
+              <input type="file" id="imageInput" accept="image/*" required />
+              <span class="upload-icon">＋</span>
+              <strong>服装图片</strong>
+              <span id="imageName">点击选择图片</span>
+            </label>
+            <label class="upload-card" id="videoDrop">
+              <input type="file" id="videoInput" accept="video/*" required />
+              <span class="upload-icon">＋</span>
+              <strong>参考视频</strong>
+              <span id="videoName">点击选择视频</span>
+            </label>
+          </div>
+
+          <div class="section-heading parameters-heading">
+            <div>
+              <span class="step">02</span>
+              <h2>生成参数</h2>
+            </div>
+            <button class="text-button" id="resetButton" type="button">恢复默认</button>
+          </div>
+
+          <div class="fields">
+            <label>
+              <span>视频时长</span>
+              <div class="input-suffix"><input id="duration" type="number" min="1" max="30" value="8" /><b>秒</b></div>
+            </label>
+            <label>
+              <span>输出尺寸</span>
+              <select id="size">
+                <option value="720">720</option>
+                <option value="960" selected>960</option>
+                <option value="1280">1280</option>
+              </select>
+            </label>
+            <label>
+              <span>蒙版扩张</span>
+              <input id="maskExpansion" type="number" min="0" max="100" value="10" />
+            </label>
+            <label>
+              <span>抖动幅度 <output id="jitterValue">0.95</output></span>
+              <input id="jitter" type="range" min="0" max="1" step="0.05" value="0.95" />
+            </label>
+          </div>
+
+          <label class="switch-row">
+            <span>
+              <strong>RunningHub 保存开关</strong>
+              <small>对应工作流中的保存选项</small>
+            </span>
+            <input id="saveSwitch" type="checkbox" />
+          </label>
+
+          <button class="primary" id="generateButton" type="submit">
+            <span id="generateLabel">开始生成</span>
+          </button>
+          <p class="form-message" id="formMessage" role="status"></p>
+        </form>
+
+        <aside class="panel task-panel">
+          <div class="section-heading">
+            <div>
+              <span class="step">03</span>
+              <h2>任务结果</h2>
+            </div>
+          </div>
+
+          <div class="empty-state" id="emptyState">
+            <div class="empty-visual"></div>
+            <strong>还没有生成任务</strong>
+            <p>提交后可以在这里查看进度和下载结果。</p>
+          </div>
+
+          <div class="task-state hidden" id="taskState">
+            <div class="task-head">
+              <span class="running-dot" id="taskDot"></span>
+              <div>
+                <strong id="taskStatus">准备上传</strong>
+                <small id="taskId"></small>
+              </div>
+            </div>
+            <div class="progress-track"><div id="progressBar"></div></div>
+            <p id="taskDetail">正在准备素材...</p>
+            <div id="results"></div>
+          </div>
+
+          <div class="history">
+            <div class="history-title">
+              <h3>最近任务</h3>
+              <button class="text-button" id="clearHistory" type="button">清空</button>
+            </div>
+            <div id="historyList"></div>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <dialog id="settingsDialog">
+      <form method="dialog" id="settingsForm">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">本地设置</p>
+            <h2>RunningHub API Key</h2>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="关闭">×</button>
+        </div>
+        <p class="dialog-copy">密钥只保存在当前浏览器，不会写入项目文件。</p>
+        <label class="api-field">
+          <span>API Key</span>
+          <input id="apiKeyInput" type="password" autocomplete="off" placeholder="输入你的 32 位 API Key" />
+        </label>
+        <label class="switch-row compact">
+          <span><strong>显示密钥</strong></span>
+          <input id="showApiKey" type="checkbox" />
+        </label>
+        <button class="primary" id="saveSettings" value="default">保存设置</button>
+      </form>
+    </dialog>
+
+    <script src="https://unpkg.com/fflate@0.8.2/umd/index.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
