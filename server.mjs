@@ -11,7 +11,7 @@ const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const PORT = Number(process.env.PORT || 4173);
 const RUNNINGHUB_API = "https://www.runninghub.ai";
 const RUNNINGHUB_UPLOAD = "https://www.runninghub.cn/openapi/v2/media/upload/binary";
-const APP_ID = "2060672373740883969";
+const DEFAULT_APP_ID = "2060672373740883969";
 const CACHE_ROOT = join(ROOT, ".cache", "extracted");
 const execFileAsync = promisify(execFile);
 
@@ -327,8 +327,10 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/upload") {
       return await proxyUpload(req, res);
     }
-    if (req.method === "POST" && url.pathname === "/api/run") {
-      return await proxyJson(req, res, `/openapi/v2/run/ai-app/${APP_ID}`);
+    if (req.method === "POST" && (url.pathname === "/api/run" || url.pathname.startsWith("/api/run/"))) {
+      const appId = url.pathname.split("/").pop() || DEFAULT_APP_ID;
+      if (!/^\d{10,}$/.test(appId)) return json(res, 400, { message: "AI 应用 ID 无效" });
+      return await proxyJson(req, res, `/openapi/v2/run/ai-app/${appId}`);
     }
     if (req.method === "POST" && url.pathname === "/api/query") {
       return await proxyJson(req, res, "/openapi/v2/query");

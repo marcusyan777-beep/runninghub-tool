@@ -1,25 +1,14 @@
-import { fileLimits as limits, runningHubApp } from "./app-config.js";
+import { defaultAppId, fileLimits as limits, runningHubApps } from "./app-config.js";
 
 const $ = (selector) => document.querySelector(selector);
 const isStaticMode =
   new URLSearchParams(location.search).get("static") === "1" ||
   !["127.0.0.1", "localhost"].includes(location.hostname);
-const directEndpoints = {
-  "/api/upload": runningHubApp.endpoints.upload,
-  "/api/run": runningHubApp.endpoints.run,
-  "/api/query": runningHubApp.endpoints.query,
-};
-
-const defaults = {
-  duration: "8",
-  size: "960",
-  maskExpansion: "10",
-  jitter: "0.95",
-  saveSwitch: false,
-};
+const appById = new Map(runningHubApps.map((app) => [app.id, app]));
 
 const state = {
   apiKey: localStorage.getItem("runninghub_api_key") || "",
+  selectedAppId: localStorage.getItem("runninghub_app_id") || defaultAppId,
   history: JSON.parse(localStorage.getItem("runninghub_history") || "[]"),
   pollingTaskId: null,
   imagePreviewUrl: "",
@@ -29,6 +18,10 @@ const state = {
 };
 
 const elements = {
+  appCategory: $("#appCategory"),
+  appTitle: $("#appTitle"),
+  appIntro: $("#appIntro"),
+  appSelect: $("#appSelect"),
   apiStatus: $("#apiStatus"),
   settingsButton: $("#settingsButton"),
   settingsDialog: $("#settingsDialog"),
@@ -43,6 +36,7 @@ const elements = {
   imageInput: $("#imageInput"),
   imageName: $("#imageName"),
   imageDrop: $("#imageDrop"),
+  imageTitle: $("#imageTitle"),
   imagePreview: $("#imagePreview"),
   videoInput: $("#videoInput"),
   videoName: $("#videoName"),
@@ -50,9 +44,12 @@ const elements = {
   videoPreview: $("#videoPreview"),
   duration: $("#duration"),
   size: $("#size"),
+  width: $("#width"),
+  height: $("#height"),
   maskExpansion: $("#maskExpansion"),
   jitter: $("#jitter"),
   jitterValue: $("#jitterValue"),
+  prompt: $("#prompt"),
   saveSwitch: $("#saveSwitch"),
   emptyState: $("#emptyState"),
   taskState: $("#taskState"),
@@ -67,6 +64,55 @@ const elements = {
   historyList: $("#historyList"),
   clearCurrentTask: $("#clearCurrentTask"),
 };
+
+function currentApp() {
+  return appById.get(state.selectedAppId) || appById.get(defaultAppId);
+}
+
+function fieldVisible(field) {
+  return currentApp().fields.includes(field);
+}
+
+function populateAppSelect() {
+  elements.appSelect.replaceChildren(
+    ...runningHubApps.map((app) => {
+      const option = document.createElement("option");
+      option.value = app.id;
+      option.textContent = app.name;
+      return option;
+    }),
+  );
+  elements.appSelect.value = currentApp().id;
+}
+
+function applyAppDefaults(app = currentApp()) {
+  for (const [key, value] of Object.entries(app.defaults)) {
+    if (!elements[key]) continue;
+    elements[key][typeof value === "boolean" ? "checked" : "value"] = value;
+  }
+  if (elements.jitter) elements.jitterValue.value = Number(elements.jitter.value).toFixed(2);
+}
+
+function updateAppUi(resetValues = false) {
+  const app = currentApp();
+  elements.appCategory.textContent = `AI 应用 · ${app.category}`;
+  elements.appTitle.textContent = app.name;
+  elements.appIntro.textContent = app.description;
+  elements.imageTitle.textContent = app.inputs.image || "图片";
+  elements.imageName.textContent = elements.imageInput.files[0]
+    ? `${elements.imageInput.files[0].name} · ${formatSize(elements.imageInput.files[0].size)}`
+    : `点击选择${app.inputs.image || "图片"}`;
+  elements.videoDrop.classList.toggle("hidden", !app.inputs.video);
+  elements.videoInput.required = Boolean(app.inputs.video);
+  elements.videoDrop.querySelector("strong").textContent = app.inputs.video || "参考视频";
+  elements.videoName.textContent = elements.videoInput.files[0]
+    ? `${elements.videoInput.files[0].name} · ${formatSize(elements.videoInput.files[0].size)}`
+    : `点击选择${app.inputs.video || "视频"}`;
+  document.querySelectorAll("[data-field]").forEach((node) => {
+    node.classList.toggle("hidden", !fieldVisible(node.dataset.field));
+  });
+  if (resetValues) applyAppDefaults(app);
+}
 
 function updateApiStatus() {
   elements.apiStatus.textContent = state.apiKey ? "API Key 已配置" : "尚未配置 API Key";
@@ -174,11 +220,12 @@ function clearCurrentTask(markHistory = false) {
 }
 
 function clearSelectedFiles() {
+  const app = currentApp();
   releaseInputPreviews();
   elements.imageInput.value = "";
   elements.videoInput.value = "";
-  fileLabel(elements.imageInput, elements.imageName, elements.imageDrop, "点击选择图片");
-  fileLabel(elements.videoInput, elements.videoName, elements.videoDrop, "点击选择视频");
+  fileLabel(elements.imageInput, elements.imageName, elements.imageDrop, `点击选择${app.inputs.image || "图片"}`);
+  fileLabel(elements.videoInput, elements.videoName, elements.videoDrop, `点击选择${app.inputs.video || "视频"}`);
 }
 
 function formatSize(bytes) {
@@ -205,7 +252,15 @@ function showTask(status, detail, progress, mode = "running", taskId = "") {
 
 async function apiFetch(url, options = {}) {
   setDiagnostics({ endpoint: url });
-  const target = isStaticMode && directEndpoints[url] ? directEndpoints[url] : url;
+  const app = currentApp();
+  const target =
+    url.startsWith("http")
+      ? url
+      : isStaticMode && url === "/api/upload"
+        ? app.endpoints.upload
+        : isStaticMode && url === "/api/query"
+          ? app.endpoints.query
+          : url;
   const response = await fetch(target, {
     ...options,
     headers: {
@@ -245,17 +300,25 @@ async function uploadFile(file, label) {
 }
 
 function buildRequest(imageValue, videoValue) {
-  const nodes = runningHubApp.nodes;
+  const app = currentApp();
+  const nodes = app.nodes;
+  const values = {
+    image: imageValue,
+    video: videoValue,
+    duration: elements.duration.value,
+    size: elements.size.value,
+    width: elements.width.value,
+    height: elements.height.value,
+    maskExpansion: elements.maskExpansion.value,
+    jitter: elements.jitter.value,
+    prompt: elements.prompt.value.trim(),
+    saveSwitch: String(elements.saveSwitch.checked),
+  };
+  const nodeInfoList = Object.entries(nodes)
+    .filter(([key]) => key !== "video" || Boolean(videoValue))
+    .map(([key, node]) => ({ ...node, fieldValue: values[key] }));
   return {
-    nodeInfoList: [
-      { ...nodes.clothingImage, fieldValue: imageValue },
-      { ...nodes.referenceVideo, fieldValue: videoValue },
-      { ...nodes.duration, fieldValue: elements.duration.value },
-      { ...nodes.size, fieldValue: elements.size.value },
-      { ...nodes.maskExpansion, fieldValue: elements.maskExpansion.value },
-      { ...nodes.jitter, fieldValue: elements.jitter.value },
-      { ...nodes.saveSwitch, fieldValue: String(elements.saveSwitch.checked) },
-    ],
+    nodeInfoList,
     instanceType: "default",
     usePersonalQueue: false,
   };
@@ -264,7 +327,8 @@ function buildRequest(imageValue, videoValue) {
 async function runTask(payload) {
   showTask("正在提交任务", "素材上传完成，正在创建 RunningHub 任务", 45);
   setDiagnostics({ requestPayload: payload });
-  const data = await apiFetch("/api/run", {
+  const endpoint = isStaticMode ? currentApp().endpoints.run : `/api/run/${currentApp().id}`;
+  const data = await apiFetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -596,7 +660,8 @@ function renderHistory() {
     row.className = "history-item";
     const info = document.createElement("div");
     const date = new Date(item.createdAt).toLocaleString("zh-CN", { hour12: false });
-    info.innerHTML = `<strong>${historyLabel(item)}</strong><br><span>${date}</span>`;
+    const appName = item.appName ? `${item.appName} · ` : "";
+    info.innerHTML = `<strong>${historyLabel(item)}</strong><br><span>${appName}${date}</span>`;
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = historyAction(item);
@@ -635,6 +700,13 @@ elements.showApiKey.addEventListener("change", () => {
   elements.apiKeyInput.type = elements.showApiKey.checked ? "text" : "password";
 });
 
+elements.appSelect.addEventListener("change", () => {
+  state.selectedAppId = elements.appSelect.value;
+  localStorage.setItem("runninghub_app_id", state.selectedAppId);
+  clearCurrentTask(false);
+  updateAppUi(true);
+});
+
 elements.imageInput.addEventListener("change", () => {
   fileLabel(elements.imageInput, elements.imageName, elements.imageDrop, "点击选择图片");
   updateInputPreview("image");
@@ -650,8 +722,7 @@ elements.videoInput.addEventListener("change", () => {
 elements.jitter.addEventListener("input", () => { elements.jitterValue.value = Number(elements.jitter.value).toFixed(2); });
 
 $("#resetButton").addEventListener("click", () => {
-  for (const [key, value] of Object.entries(defaults)) elements[key][typeof value === "boolean" ? "checked" : "value"] = value;
-  elements.jitterValue.value = defaults.jitter;
+  applyAppDefaults();
 });
 
 elements.rerunButton.addEventListener("click", () => {
@@ -683,19 +754,24 @@ elements.generatorForm.addEventListener("submit", async (event) => {
 
   const image = elements.imageInput.files[0];
   const video = elements.videoInput.files[0];
-  if (!image || !video) return;
+  const app = currentApp();
+  if (!image || (app.inputs.video && !video)) return;
+  if (fieldVisible("prompt") && !elements.prompt.value.trim()) {
+    elements.formMessage.textContent = "请先填写 Prompt";
+    return;
+  }
   const imageWarning = validateFile(image, "image");
-  const videoWarning = validateFile(video, "video");
+  const videoWarning = video ? validateFile(video, "video") : "";
   if (imageWarning || videoWarning) {
     elements.formMessage.textContent = [imageWarning, videoWarning].filter(Boolean).join(" ");
   }
 
   try {
     setBusy(true, "正在处理...");
-    const imageValue = await uploadFile(image, "服装图片");
-    const videoValue = await uploadFile(video, "参考视频");
+    const imageValue = await uploadFile(image, app.inputs.image || "图片");
+    const videoValue = video ? await uploadFile(video, app.inputs.video || "视频") : "";
     const task = await runTask(buildRequest(imageValue, videoValue));
-    saveHistory({ taskId: task.taskId, status: task.status || "RUNNING", results: [], createdAt: Date.now() });
+    saveHistory({ taskId: task.taskId, appId: app.id, appName: app.name, status: task.status || "RUNNING", results: [], createdAt: Date.now() });
     await pollTask(task.taskId);
   } catch (error) {
     setDiagnostics({ error: error.message });
@@ -706,6 +782,8 @@ elements.generatorForm.addEventListener("submit", async (event) => {
   }
 });
 
+populateAppSelect();
+updateAppUi(true);
 updateApiStatus();
 renderHistory();
 

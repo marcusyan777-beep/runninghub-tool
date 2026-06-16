@@ -104,6 +104,24 @@ h1 { margin: 0; font-size: clamp(34px, 5vw, 58px); line-height: 1; letter-spacin
 .step { color: var(--accent); font-size: 11px; font-weight: 900; }
 
 .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
+.app-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 20px;
+  color: #cdd2c8;
+  font-size: 13px;
+}
+.app-picker select {
+  width: 100%;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0e110d;
+  color: var(--text);
+  padding: 0 13px;
+  outline: 0;
+}
 .upload-card {
   min-height: 230px;
   border: 1px dashed #41483b;
@@ -145,10 +163,9 @@ h1 { margin: 0; font-size: clamp(34px, 5vw, 58px); line-height: 1; letter-spacin
 .text-button:hover { color: var(--text); }
 
 .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
-.fields label, .api-field { display: flex; flex-direction: column; gap: 9px; color: #cdd2c8; font-size: 13px; }
-.fields input:not([type="range"]), .fields select, .api-field input {
+.fields label, .api-field, .prompt-field { display: flex; flex-direction: column; gap: 9px; color: #cdd2c8; font-size: 13px; }
+.fields input:not([type="range"]), .fields select, .api-field input, .prompt-field textarea {
   width: 100%;
-  height: 48px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #0e110d;
@@ -156,7 +173,10 @@ h1 { margin: 0; font-size: clamp(34px, 5vw, 58px); line-height: 1; letter-spacin
   padding: 0 13px;
   outline: 0;
 }
-.fields input:focus, .fields select:focus, .api-field input:focus { border-color: var(--accent); }
+.fields input:not([type="range"]), .fields select, .api-field input { height: 48px; }
+.prompt-field { margin-top: 15px; }
+.prompt-field textarea { min-height: 142px; padding: 13px; resize: vertical; line-height: 1.6; }
+.fields input:focus, .fields select:focus, .api-field input:focus, .app-picker select:focus, .prompt-field textarea:focus { border-color: var(--accent); }
 .input-suffix { position: relative; }
 .input-suffix b { position: absolute; right: 13px; top: 14px; color: var(--muted); font-weight: 500; }
 output { color: var(--accent); float: right; }
