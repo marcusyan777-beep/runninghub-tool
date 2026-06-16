@@ -50,6 +50,7 @@ const elements = {
   maskExpansion: $("#maskExpansion"),
   jitter: $("#jitter"),
   jitterValue: $("#jitterValue"),
+  instanceType: $("#instanceType"),
   prompt: $("#prompt"),
   saveSwitch: $("#saveSwitch"),
   emptyState: $("#emptyState"),
@@ -320,9 +321,23 @@ function buildRequest(imageValue, videoValue) {
     .map(([key, node]) => ({ ...node, fieldValue: values[key] }));
   return {
     nodeInfoList,
-    instanceType: "default",
+    instanceType: elements.instanceType.value,
     usePersonalQueue: false,
   };
+}
+
+function runningHubFailureReason(data) {
+  const failed = data.failedReason || {};
+  const message =
+    failed.exception_message ||
+    failed.message ||
+    data.errorMessage ||
+    "任务生成失败";
+  if (failed.exception_type === "torch.OutOfMemoryError" || /VRAM|OutOfMemory|显存/i.test(message)) {
+    return "显存不足：建议把输出尺寸降到 960 或 720、缩短视频时长，或把“运行实例”改成 plus · 48G 显存后重试。";
+  }
+  if (failed.node_name) return `${message}（节点：${failed.node_name}）`;
+  return message;
 }
 
 async function runTask(payload) {
@@ -360,7 +375,7 @@ async function pollTask(taskId) {
       return data;
     }
     if (data.status === "FAILED") {
-      const reason = data.errorMessage || data.failedReason?.message || "任务生成失败";
+      const reason = runningHubFailureReason(data);
       showTask("生成失败", reason, 100, "failed", taskId);
       setDiagnostics({ error: reason, runninghubResponse: data });
       saveHistory({ taskId, status: "FAILED", results: [], createdAt: Date.now(), error: reason });
@@ -776,8 +791,14 @@ elements.generatorForm.addEventListener("submit", async (event) => {
   }
   const imageWarning = validateFile(image, "image");
   const videoWarning = video ? validateFile(video, "video") : "";
-  if (imageWarning || videoWarning) {
-    elements.formMessage.textContent = [imageWarning, videoWarning].filter(Boolean).join(" ");
+  const oomWarning =
+    app.key === "clothing-video-jitter" &&
+    elements.instanceType.value === "default" &&
+    (Number(elements.size.value) >= 1280 || Number(elements.duration.value) > 8)
+      ? "当前换装参数较吃显存：1280 或超过 8 秒建议改用 plus · 48G，或降低尺寸/时长。"
+      : "";
+  if (imageWarning || videoWarning || oomWarning) {
+    elements.formMessage.textContent = [imageWarning, videoWarning, oomWarning].filter(Boolean).join(" ");
   }
 
   try {
