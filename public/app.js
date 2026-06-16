@@ -32,6 +32,7 @@ const elements = {
   generateButton: $("#generateButton"),
   generateLabel: $("#generateLabel"),
   rerunButton: $("#rerunButton"),
+  forceUpdateButton: $("#forceUpdateButton"),
   formMessage: $("#formMessage"),
   imageInput: $("#imageInput"),
   imageName: $("#imageName"),
@@ -727,6 +728,19 @@ $("#resetButton").addEventListener("click", () => {
 
 elements.rerunButton.addEventListener("click", () => {
   elements.generatorForm.requestSubmit();
+});
+
+elements.forceUpdateButton.addEventListener("click", async () => {
+  elements.formMessage.textContent = "正在清理网页缓存...";
+  if ("serviceWorker" in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  }
+  if ("caches" in window) {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+  }
+  location.replace(`${location.pathname}?v=${Date.now()}`);
 });
 
 $("#clearHistory").addEventListener("click", () => {

@@ -1,4 +1,4 @@
-const CACHE = "runninghub-pwa-v8";
+const CACHE = "runninghub-pwa-v9";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -24,7 +24,21 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET" || new URL(event.request.url).origin !== location.origin) return;
+  const url = new URL(event.request.url);
+  if (event.request.method !== "GET" || url.origin !== location.origin) return;
+  const networkFirst =
+    event.request.mode === "navigate" ||
+    ["/", "/index.html", "/app.js", "/app-config.js", "/styles.css", "/sw.js"].includes(url.pathname);
+  if (networkFirst) {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+        return response;
+      }).catch(() => caches.match(event.request)),
+    );
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then((cached) =>
       cached || fetch(event.request).then((response) => {
