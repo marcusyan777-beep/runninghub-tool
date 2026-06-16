@@ -22,7 +22,6 @@ const elements = {
   appTitle: $("#appTitle"),
   appIntro: $("#appIntro"),
   appSelect: $("#appSelect"),
-  appCards: $("#appCards"),
   apiStatus: $("#apiStatus"),
   settingsButton: $("#settingsButton"),
   settingsDialog: $("#settingsDialog"),
@@ -85,26 +84,6 @@ function populateAppSelect() {
     }),
   );
   elements.appSelect.value = currentApp().id;
-  renderAppCards();
-}
-
-function renderAppCards() {
-  elements.appCards.replaceChildren(
-    ...runningHubApps.map((app) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = `app-card-option${app.id === currentApp().id ? " active" : ""}`;
-      button.innerHTML = `<strong>${app.name}</strong><span>${app.category}</span><small>${app.description}</small>`;
-      button.addEventListener("click", () => {
-        state.selectedAppId = app.id;
-        elements.appSelect.value = app.id;
-        localStorage.setItem("runninghub_app_id", state.selectedAppId);
-        clearCurrentTask(false);
-        updateAppUi(true);
-      });
-      return button;
-    }),
-  );
 }
 
 function applyAppDefaults(app = currentApp()) {
@@ -134,7 +113,6 @@ function updateAppUi(resetValues = false) {
     node.classList.toggle("hidden", !fieldVisible(node.dataset.field));
   });
   if (resetValues) applyAppDefaults(app);
-  renderAppCards();
 }
 
 function updateApiStatus() {
