@@ -22,9 +22,9 @@
     <main>
       <section class="hero">
         <div>
-          <p class="eyebrow">AI 应用 · 视频换装</p>
-          <h1>视频换装加抖动</h1>
-          <p class="intro">上传服装图片和参考视频，调整参数后直接提交到 RunningHub。</p>
+          <p class="eyebrow" id="appCategory">AI 应用 · 视频换装</p>
+          <h1 id="appTitle">视频换装加抖动</h1>
+          <p class="intro" id="appIntro">上传服装图片和参考视频，调整参数后直接提交到 RunningHub。</p>
         </div>
         <div class="status-badge" id="apiStatus">尚未配置 API Key</div>
       </section>
@@ -34,17 +34,22 @@
           <div class="section-heading">
             <div>
               <span class="step">01</span>
-              <h2>选择素材</h2>
+              <h2>选择应用和素材</h2>
             </div>
             <p>图片和视频仅用于上传到 RunningHub。</p>
           </div>
+
+          <label class="app-picker">
+            <span>AI 应用</span>
+            <select id="appSelect"></select>
+          </label>
 
           <div class="upload-grid">
             <label class="upload-card" id="imageDrop">
               <input type="file" id="imageInput" accept="image/*" required />
               <span class="upload-icon">＋</span>
               <span class="input-preview" id="imagePreview"></span>
-              <strong>服装图片</strong>
+              <strong id="imageTitle">服装图片</strong>
               <span id="imageName">点击选择图片</span>
             </label>
             <label class="upload-card" id="videoDrop">
@@ -65,11 +70,11 @@
           </div>
 
           <div class="fields">
-            <label>
+            <label data-field="duration">
               <span>视频时长</span>
               <div class="input-suffix"><input id="duration" type="number" min="1" max="30" value="8" /><b>秒</b></div>
             </label>
-            <label>
+            <label data-field="size">
               <span>输出尺寸</span>
               <select id="size">
                 <option value="720">720</option>
@@ -77,17 +82,30 @@
                 <option value="1280">1280</option>
               </select>
             </label>
-            <label>
+            <label data-field="width">
+              <span>宽度</span>
+              <input id="width" type="number" min="128" max="2048" value="420" />
+            </label>
+            <label data-field="height">
+              <span>高度</span>
+              <input id="height" type="number" min="128" max="2048" value="832" />
+            </label>
+            <label data-field="maskExpansion">
               <span>蒙版扩张</span>
               <input id="maskExpansion" type="number" min="0" max="100" value="10" />
             </label>
-            <label>
+            <label data-field="jitter">
               <span>抖动幅度 <output id="jitterValue">0.95</output></span>
               <input id="jitter" type="range" min="0" max="1" step="0.05" value="0.95" />
             </label>
           </div>
 
-          <label class="switch-row">
+          <label class="prompt-field" data-field="prompt">
+            <span>Prompt</span>
+            <textarea id="prompt" rows="6"></textarea>
+          </label>
+
+          <label class="switch-row" data-field="saveSwitch">
             <span>
               <strong>RunningHub 保存开关</strong>
               <small>对应工作流中的保存选项</small>
