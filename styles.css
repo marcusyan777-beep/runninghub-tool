@@ -122,29 +122,6 @@ h1 { margin: 0; font-size: clamp(34px, 5vw, 58px); line-height: 1; letter-spacin
   padding: 0 13px;
   outline: 0;
 }
-.app-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 12px;
-}
-.app-card-option {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #0e110d;
-  color: var(--text);
-  padding: 13px;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.app-card-option.active {
-  border-color: var(--accent);
-  background: rgba(184, 255, 22, .08);
-}
-.app-card-option span { color: var(--accent); font-size: 11px; font-weight: 800; }
-.app-card-option small { color: var(--muted); font-size: 11px; line-height: 1.45; }
 .upload-card {
   min-height: 230px;
   border: 1px dashed #41483b;
@@ -312,7 +289,6 @@ dialog form { padding: 26px; }
 @media (max-width: 520px) {
   .panel { padding: 20px; border-radius: 18px; }
   .upload-grid, .fields { grid-template-columns: 1fr; }
-  .app-cards { grid-template-columns: 1fr; }
   .upload-card { min-height: 210px; }
   .extracted-meta { align-items: stretch; flex-direction: column; }
   .extracted-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
